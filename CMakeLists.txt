@@ -2,6 +2,8 @@ project(vapoursynth-waifu2x-ncnn-vulkan)
 cmake_minimum_required(VERSION 3.9)
 set(CMAKE_BUILD_TYPE Release)
 
+option(USE_STATIC_MOLTENVK "link moltenvk static library" OFF)
+
 find_package(Vulkan REQUIRED)
 
 # check glslangValidator
@@ -170,5 +172,30 @@ endif()
 # libvsw2xnvk
 add_library(vsw2xnvk SHARED src/vsw2xnvk.cpp src/waifu2x.cpp)
 target_include_directories(vsw2xnvk PRIVATE ${VAPOURSYNTH_HEADER_DIR})
-target_link_libraries(vsw2xnvk ncnn ${Vulkan_LIBRARY})
+
+set(WAIFU2X_LINK_LIBRARIES ncnn ${Vulkan_LIBRARY})
+
+if(USE_STATIC_MOLTENVK)
+    find_library(CoreFoundation NAMES CoreFoundation)
+    find_library(Foundation NAMES Foundation)
+    find_library(Metal NAMES Metal)
+    find_library(QuartzCore NAMES QuartzCore)
+    find_library(CoreGraphics NAMES CoreGraphics)
+    find_library(Cocoa NAMES Cocoa)
+    find_library(IOKit NAMES IOKit)
+    find_library(IOSurface NAMES IOSurface)
+
+    list(APPEND WAIFU2X_LINK_LIBRARIES
+        ${Metal}
+        ${QuartzCore}
+        ${CoreGraphics}
+        ${Cocoa}
+        ${IOKit}
+        ${IOSurface}
+        ${Foundation}
+        ${CoreFoundation}
+    )
+endif()
+
+target_link_libraries(vsw2xnvk ${WAIFU2X_LINK_LIBRARIES})
 add_dependencies(vsw2xnvk generate-spirv)
