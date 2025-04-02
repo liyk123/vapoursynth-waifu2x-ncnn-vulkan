@@ -52,36 +52,18 @@ typedef struct {
     VSNodeRef *node;
     VSVideoInfo vi;
     Waifu2x *waifu2x;
-    int scale_run_count;
 } FilterData;
 
 static int filter(const VSFrameRef *src, VSFrameRef *dst, FilterData * const VS_RESTRICT d, const VSAPI *vsapi) noexcept {
     const int srcStride = vsapi->getStride(src, 0) / static_cast<int>(sizeof(float));
-    int dstStride = vsapi->getStride(dst, 0) / static_cast<int>(sizeof(float));
+    const int dstStride = vsapi->getStride(dst, 0) / static_cast<int>(sizeof(float));
     auto *             srcR = reinterpret_cast<const float *>(vsapi->getReadPtr(src, 0));
     auto *             srcG = reinterpret_cast<const float *>(vsapi->getReadPtr(src, 1));
     auto *             srcB = reinterpret_cast<const float *>(vsapi->getReadPtr(src, 2));
     auto * VS_RESTRICT dstR = reinterpret_cast<float *>(vsapi->getWritePtr(dst, 0));
     auto * VS_RESTRICT dstG = reinterpret_cast<float *>(vsapi->getWritePtr(dst, 1));
     auto * VS_RESTRICT dstB = reinterpret_cast<float *>(vsapi->getWritePtr(dst, 2));
-    int ret = 0;
-    auto inStride = srcStride;
-    auto inR = srcR;
-    auto inG = srcG;
-    auto inB = srcB;
-    do
-    {
-        ret = d->waifu2x->process(inR, inG, inB, dstR, dstG, dstB, inStride, dstStride);
-        if (ret != 0)
-        {
-            break;
-        }
-        inR = dstG;
-        inG = dstG;
-        inB = dstB;
-        inStride = dstStride;
-    } while (--d->scale_run_count > 0);
-    return ret;
+    return d->waifu2x->process(srcR, srcG, srcB, dstR, dstG, dstB, srcStride, dstStride);
 }
 
 static void VS_CC filterInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
@@ -166,8 +148,8 @@ static void VS_CC filterCreate(const VSMap *in, VSMap *out, void *userData, VSCo
         scale = int64ToIntS(vsapi->propGetInt(in, "scale", 0, &err));
         if (err)
             scale = 2;
-        if (scale < 1 || scale > 1 && scale % 2 != 0) {
-            err_prompt = "'scale' must be 1 or even number greater than 2";
+        if (scale != 1 && scale != 2) {
+            err_prompt = "'scale' must be 1 or 2";
             break;
         }
 
@@ -306,8 +288,6 @@ static void VS_CC filterCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     else
         prepadding = 7;
 
-    d.scale_run_count = log2(scale);
-    scale = (scale > 2 ? 2 : scale);
     d.waifu2x = new Waifu2x(d.vi.width, d.vi.height, scale, tileSizeW, tileSizeH, gpuId, gpuThread, precision, tta, prepadding, paramPath, modelPath);
     d.vi.width *= scale;
     d.vi.height *= scale;
